@@ -176,3 +176,9 @@ securityContext:
     add: ["NET_BIND_SERVICE"]
     # -- linux cabilities to disallow for the coturn k8s pod
     drop: ["ALL"]
+
+affinity: {}
+deploymentKind: Deployment
+hostAliases: []
+hostNetwork: false
+hostPort: false

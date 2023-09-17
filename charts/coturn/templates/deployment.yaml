@@ -5,7 +5,9 @@ metadata:
   labels:
 {{ include "labels" . | indent 4 }}
 spec:
+{{- if ne .Values.deploymentKind "DaemonSet" }}
   replicas: {{ .Values.replicas }}
+{{- end }}
   selector:
     matchLabels:
       app.kubernetes.io/name: {{ .Release.Name }}-coturn
@@ -40,14 +42,16 @@ spec:
                   {{ else }}
                   key: {{ .Values.postgresql.global.postgresql.auth.secretKeys.username }}
                   {{- end }}
+            {{- if .Values.externalDatabase.enabled  }}
             - name: DATABASE_HOSTNAME
-            {{- if and .Values.externalDatabase.enabled .Values.externalDatabase.secretKeys.hostname }}
               valueFrom:
                 secretKeyRef:
                   name: {{ include "database.secretName" . }}
+              {{- if .Values.externalDatabase.secretKeys.hostname }}
                   key: {{ .Values.externalDatabase.secretKeys.hostname }}
-            {{ else }}
-              value: {{ template "postgresql.primary.fullname" .Subcharts.postgresql }}
+              {{- else }}
+                  key: hostname
+              {{- end }}
             {{- end }}
           command:
             - "sh"
@@ -73,14 +77,16 @@ spec:
                   name: {{ include "coturn.auth.secretName" . }}
                   key: {{ .Values.coturn.auth.secretKeys.password }}
             {{- if or .Values.externalDatabase.enabled .Values.postgresql.enabled }}
+            {{- if .Values.externalDatabase.enabled }}
             - name: DATABASE_HOSTNAME
-            {{- if and .Values.externalDatabase.enabled .Values.externalDatabase.secretKeys.hostname }}
               valueFrom:
                 secretKeyRef:
                   name: {{ include "database.secretName" . }}
+              {{- if .Values.externalDatabase.secretKeys.hostname }}
                   key: {{ .Values.externalDatabase.secretKeys.hostname }}
-            {{ else }}
-              value: {{ template "postgresql.primary.fullname" .Subcharts.postgresql }}
+              {{- else }}
+                  key: hostname
+              {{- end }}
             {{- end }}
             - name: DATABASE_USER
               valueFrom:
@@ -141,15 +147,27 @@ spec:
             - name: turn-udp
               containerPort: {{ .Values.coturn.ports.listening }}
               protocol: UDP
+              {{- if .Values.hostPort }}
+              hostPort: {{ .Values.coturn.ports.listening }}
+              {{- end }}
             - name: turn-tcp
               containerPort: {{ .Values.coturn.ports.listening }}
               protocol: TCP
+              {{- if .Values.hostPort }}
+              hostPort: {{ .Values.coturn.ports.listening }}
+              {{- end }}
             - name: turn-tcp-tls
               containerPort: {{ .Values.coturn.ports.tlsListening }}
               protocol: TCP
+              {{- if .Values.hostPort }}
+              hostPort: {{ .Values.coturn.ports.tlsListening }}
+              {{- end }}
             - name: turn-udp-dtls
               containerPort: {{ .Values.coturn.ports.tlsListening }}
               protocol: UDP
+              {{- if .Values.hostPort }}
+              hostPort: {{ .Values.coturn.ports.tlsListening }}
+              {{- end }}
           volumeMounts:
             - name: {{ .Release.Name }}-config
               mountPath: "/turnserver.conf"
@@ -187,3 +205,12 @@ spec:
             {{- end }}
         - name: var-tmp
           emptyDir: {}
+      {{- with .Values.affinity }}
+      affinity:
+        {{ toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.hostAliases }}
+      hostAliases:
+      {{ toYaml . | nindent 6 }}
+      {{- end }}
+      hostNetwork: {{ .Values.hostNetwork }}
